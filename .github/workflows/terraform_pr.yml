@@ -1,4 +1,4 @@
-name: 'Terraform PR Automation'
+name: 'Terraform PR Automation1'
 
 on:
   pull_request:
