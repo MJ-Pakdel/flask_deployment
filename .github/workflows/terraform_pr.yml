@@ -1,7 +1,7 @@
-name: 'Terraform PR Automation1'
+name: 'Terraform Automation on Push to Main1'
 
 on:
-  pull_request:
+  push:
     branches:
       - main
     paths:
@@ -10,7 +10,6 @@ on:
 
 jobs:
   terraform:
-    if: github.head_ref == 'feature1' # Ensure this runs only for PRs from feature1 to main
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
