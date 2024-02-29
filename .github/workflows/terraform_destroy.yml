@@ -1,4 +1,4 @@
-name: 'Terraform Destroy'
+name: 'Terraform Destroy1'
 
 on: 
   workflow_dispatch: # Allows manual trigger from GitHub UI
