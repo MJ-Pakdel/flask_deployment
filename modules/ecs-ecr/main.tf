@@ -14,7 +14,7 @@ resource "aws_internet_gateway" "igw" {
 # Subnet 1 - Similar to your JSON definition
 resource "aws_subnet" "subnet_1" {
   vpc_id                  = var.vpc_id
-  cidr_block              = "10.192.20.0/24"
+  cidr_block              = "10.192.30.0/24"
   availability_zone       = "us-east-1a"
   map_public_ip_on_launch = true
 
@@ -29,7 +29,7 @@ resource "aws_subnet" "subnet_1" {
 # Subnet 2 - Similar configuration with a different CIDR block
 resource "aws_subnet" "subnet_2" {
   vpc_id                  = var.vpc_id
-  cidr_block              = "10.192.30.0/24"
+  cidr_block              = "10.192.40.0/24"
   availability_zone       = "us-east-1b" # Assuming the second subnet is in a different AZ for high availability
   map_public_ip_on_launch = true
 
