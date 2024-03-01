@@ -2,20 +2,6 @@ variable "vpc_id" {
   default = "vpc-0d901141117fda04f"
 }
 
-variable "project_name" {
-  type    = string
-  default = "flask_deployment"
-}
-
-variable "environment" {
-  type    = string
-  default = "prod"
-}
-
-variable "region" {
-  default = "us-east-1"
-}
-
 # Internet Gateway
 resource "aws_internet_gateway" "igw" {
   vpc_id = var.vpc_id
