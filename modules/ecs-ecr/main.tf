@@ -1,11 +1,3 @@
-variable "project_name" {
-  default = "your_project_name"
-}
-
-variable "environment" {
-  default = "prod"
-}
-
 # VPC ID is hardcoded based on your JSON
 variable "vpc_id" {
   default = "vpc-0d901141117fda04f"
