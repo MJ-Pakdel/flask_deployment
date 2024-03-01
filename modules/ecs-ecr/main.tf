@@ -1,40 +1,58 @@
-# Internet Gateway for the VPC
+variable "project_name" {
+  default = "your_project_name"
+}
+
+variable "environment" {
+  default = "prod"
+}
+
+# VPC ID is hardcoded based on your JSON
+variable "vpc_id" {
+  default = "vpc-0d901141117fda04f"
+}
+
 resource "aws_internet_gateway" "igw" {
-  vpc_id = "vpc-0d901141117fda04f"
+  vpc_id = var.vpc_id
 
   tags = {
     Name = "${var.project_name}-${var.environment}-igw"
   }
 }
 
-# Subnets
+# Subnet 1 - Similar to your JSON definition
 resource "aws_subnet" "subnet_1" {
-  vpc_id                  = "vpc-0d901141117fda04f"
-  cidr_block              = "10.0.1.0/24"
+  vpc_id                  = var.vpc_id
+  cidr_block              = "10.192.10.0/24"
   availability_zone       = "us-east-1a"
   map_public_ip_on_launch = true
 
   tags = {
     Name = "${var.project_name}-${var.environment}-subnet-1"
+    "aws:cloudformation:stack-name" = "lili-vac"
+    "aws:cloudformation:logical-id" = "PublicSubnet1"
+    "aws:cloudformation:stack-id" = "arn:aws:cloudformation:us-east-1:153295639067:stack/lili-vac/0fc6d1e0-0840-11ec-968e-1226ff6bb471"
   }
 }
 
+# Subnet 2 - Similar configuration with a different CIDR block
 resource "aws_subnet" "subnet_2" {
-  vpc_id                  = "vpc-0d901141117fda04f"
-  cidr_block              = "10.0.2.0/24"
-  availability_zone       = "us-east-1b"
+  vpc_id                  = var.vpc_id
+  cidr_block              = "10.192.20.0/24"
+  availability_zone       = "us-east-1b" # Assuming the second subnet is in a different AZ for high availability
   map_public_ip_on_launch = true
 
   tags = {
     Name = "${var.project_name}-${var.environment}-subnet-2"
+    "aws:cloudformation:stack-name" = "lili-vac"
+    "aws:cloudformation:logical-id" = "PublicSubnet2"
+    "aws:cloudformation:stack-id" = "arn:aws:cloudformation:us-east-1:153295639067:stack/lili-vac/0fc6d1e0-0840-11ec-968e-1226ff6bb471"
   }
 }
 
-# Security Group allowing public access to Flask app on port 5000
 resource "aws_security_group" "flask_sg" {
   name        = "${var.project_name}-${var.environment}-flask-sg"
   description = "Allow public access to Flask app on port 5000"
-  vpc_id      = "vpc-0d901141117fda04f"
+  vpc_id      = var.vpc_id
 
   ingress {
     from_port   = 5000
@@ -92,7 +110,7 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
 
 # ECS Task Definition with Container Logging
 resource "aws_ecs_task_definition" "app" {
-  family                   = "myapp-prod"
+  family                   = "${var.project_name}-${var.environment}"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
@@ -101,7 +119,7 @@ resource "aws_ecs_task_definition" "app" {
 
   container_definitions = jsonencode([
     {
-      name         = "myapp-prod"
+      name         = "${var.project_name}-${var.environment}"
       image        = "153295639067.dkr.ecr.us-east-1.amazonaws.com/${var.project_name}-${var.environment}-ecr:latest"
       essential    = true
       portMappings = [
