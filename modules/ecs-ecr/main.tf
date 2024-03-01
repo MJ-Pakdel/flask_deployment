@@ -5,7 +5,6 @@ variable "vpc_id" {
 # Internet Gateway
 resource "aws_internet_gateway" "igw" {
   vpc_id = var.vpc_id
-
   tags = {
     Name = "${var.project_name}-${var.environment}-igw"
   }
@@ -14,12 +13,10 @@ resource "aws_internet_gateway" "igw" {
 # Route Table
 resource "aws_route_table" "public" {
   vpc_id = var.vpc_id
-
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.igw.id
   }
-
   tags = {
     Name = "${var.project_name}-${var.environment}-public-rt"
   }
@@ -31,7 +28,6 @@ resource "aws_subnet" "subnet_1" {
   cidr_block              = "10.192.30.0/24"
   availability_zone       = "us-east-1a"
   map_public_ip_on_launch = true
-
   tags = {
     Name = "${var.project_name}-${var.environment}-subnet-1"
   }
@@ -42,7 +38,6 @@ resource "aws_subnet" "subnet_2" {
   cidr_block              = "10.192.40.0/24"
   availability_zone       = "us-east-1b"
   map_public_ip_on_launch = true
-
   tags = {
     Name = "${var.project_name}-${var.environment}-subnet-2"
   }
@@ -59,28 +54,89 @@ resource "aws_route_table_association" "a_subnet_2" {
   route_table_id = aws_route_table.public.id
 }
 
-# Security Group
+# Security Group for ECS Tasks
 resource "aws_security_group" "flask_sg" {
   name        = "${var.project_name}-${var.environment}-flask-sg"
   description = "Allow public access to Flask app on port 5000"
   vpc_id      = var.vpc_id
-
   ingress {
     from_port   = 5000
     to_port     = 5000
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
   tags = {
     Name = "${var.project_name}-${var.environment}-flask-sg"
+  }
+}
+
+# Security Group for ALB
+resource "aws_security_group" "alb_sg" {
+  name        = "${var.project_name}-${var.environment}-alb-sg"
+  description = "Security group for ALB"
+  vpc_id      = var.vpc_id
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  tags = {
+    Name = "${var.project_name}-${var.environment}-alb-sg"
+  }
+}
+
+# Application Load Balancer
+resource "aws_lb" "app_alb" {
+  name               = "${var.project_name}-${var.environment}-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb_sg.id]
+  subnets            = [aws_subnet.subnet_1.id, aws_subnet.subnet_2.id]
+  tags = {
+    Name = "${var.project_name}-${var.environment}-alb"
+  }
+}
+
+# Target Group
+resource "aws_lb_target_group" "app_tg" {
+  name     = "${var.project_name}-${var.environment}-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = var.vpc_id
+  health_check {
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    timeout             = 5
+    path                = "/health"
+    interval            = 30
+    matcher             = "200"
+  }
+  tags = {
+    Name = "${var.project_name}-${var.environment}-tg"
+  }
+}
+
+# Listener
+resource "aws_lb_listener" "app_listener" {
+  load_balancer_arn = aws_lb.app_alb.arn
+  port              = 80
+  protocol          = "HTTP"
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.app_tg.arn
   }
 }
 
@@ -97,19 +153,14 @@ resource "aws_ecr_repository" "repository" {
 # IAM Role for ECS Task Execution
 resource "aws_iam_role" "ecs_task_execution_role" {
   name = "${var.project_name}-${var.environment}-ecs-task-execution-role"
-
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Principal = {
-          Service = "ecs-tasks.amazonaws.com"
-        }
-        Effect = "Allow"
-        Sid    = ""
-      },
-    ]
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Principal = {Service = "ecs-tasks.amazonaws.com"}
+      Effect = "Allow"
+      Sid = ""
+    }]
   })
 }
 
@@ -127,35 +178,27 @@ resource "aws_ecs_task_definition" "app" {
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
   cpu                      = "256"
   memory                   = "512"
-
-  container_definitions = jsonencode([
-    {
-      name         = "${var.project_name}-${var.environment}"
-      image        = "153295639067.dkr.ecr.us-east-1.amazonaws.com/${var.project_name}-${var.environment}-ecr:latest"
-      essential    = true
-      portMappings = [
-        {
-          containerPort = 5000
-          hostPort      = 5000
-        }
-      ],
-      logging = {
-        logDriver = "awslogs",
-        options = {
-          awslogs-group         = "/ecs/${var.project_name}-${var.environment}",
-          awslogs-region        = "us-east-1",
-          awslogs-stream-prefix = "ecs"
-        }
-      },
-      healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"],
-        interval    = 30,
-        timeout     = 10,
-        retries     = 3,
-        startPeriod = 30
+  container_definitions    = jsonencode([{
+    name          = "${var.project_name}-${var.environment}"
+    image         = "153295639067.dkr.ecr.us-east-1.amazonaws.com/${var.project_name}-${var.environment}-ecr:latest"
+    essential     = true
+    portMappings  = [{containerPort = 5000, hostPort = 5000}]
+    logging       = {
+      logDriver = "awslogs"
+      options = {
+        awslogs-group         = "/ecs/${var.project_name}-${var.environment}"
+        awslogs-region        = "us-east-1"
+        awslogs-stream-prefix = "ecs"
       }
     }
-  ])
+    healthCheck   = {
+      command     = ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+      interval    = 30
+      timeout     = 10
+      retries     = 3
+      startPeriod = 30
+    }
+  }])
 }
 
 # CloudWatch Log Group for ECS Logging
@@ -163,39 +206,23 @@ resource "aws_cloudwatch_log_group" "ecs_logs" {
   name = "/ecs/${var.project_name}-${var.environment}"
 }
 
-# IAM Role Policy for ECS Logging
-resource "aws_iam_role_policy" "ecs_logging" {
-  name = "${var.project_name}-${var.environment}-ecs-logging"
-  role = aws_iam_role.ecs_task_execution_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Action = [
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ],
-        Resource = "arn:aws:logs:*:*:log-group:/ecs/${var.project_name}-${var.environment}:*",
-        Effect = "Allow",
-      },
-    ],
-  })
-}
-
-# ECS Service with Network Configuration
+# ECS Service with Load Balancer
 resource "aws_ecs_service" "my_service" {
   name            = "${var.project_name}-${var.environment}-service"
   cluster         = aws_ecs_cluster.cluster.id
   task_definition = aws_ecs_task_definition.app.arn
   desired_count   = 1
   launch_type     = "FARGATE"
-
+  load_balancer {
+    target_group_arn = aws_lb_target_group.app_tg.arn
+    container_name   = "${var.project_name}-${var.environment}"
+    container_port   = 5000
+  }
   network_configuration {
     subnets         = [aws_subnet.subnet_1.id, aws_subnet.subnet_2.id]
     assign_public_ip = true
     security_groups = [aws_security_group.flask_sg.id]
   }
-
+  depends_on = [aws_lb_listener.app_listener]
   force_new_deployment = true
 }

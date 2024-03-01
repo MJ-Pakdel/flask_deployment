@@ -1,12 +1,100 @@
+variable "vpc_id" {
+  default = "vpc-0d901141117fda04f"
+}
+
+# Internet Gateway
+resource "aws_internet_gateway" "igw" {
+  vpc_id = var.vpc_id
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-igw"
+  }
+}
+
+# Route Table
+resource "aws_route_table" "public" {
+  vpc_id = var.vpc_id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
+  }
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-public-rt"
+  }
+}
+
+# Subnets
+resource "aws_subnet" "subnet_1" {
+  vpc_id                  = var.vpc_id
+  cidr_block              = "10.192.30.0/24"
+  availability_zone       = "us-east-1a"
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-subnet-1"
+  }
+}
+
+resource "aws_subnet" "subnet_2" {
+  vpc_id                  = var.vpc_id
+  cidr_block              = "10.192.40.0/24"
+  availability_zone       = "us-east-1b"
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-subnet-2"
+  }
+}
+
+# Subnet Route Table Associations
+resource "aws_route_table_association" "a_subnet_1" {
+  subnet_id      = aws_subnet.subnet_1.id
+  route_table_id = aws_route_table.public.id
+}
+
+resource "aws_route_table_association" "a_subnet_2" {
+  subnet_id      = aws_subnet.subnet_2.id
+  route_table_id = aws_route_table.public.id
+}
+
+# Security Group
+resource "aws_security_group" "flask_sg" {
+  name        = "${var.project_name}-${var.environment}-flask-sg"
+  description = "Allow public access to Flask app on port 5000"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    from_port   = 5000
+    to_port     = 5000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-flask-sg"
+  }
+}
+
+# ECS Cluster
 resource "aws_ecs_cluster" "cluster" {
   name = "${var.project_name}-${var.environment}-cluster"
 }
 
+# ECR Repository
 resource "aws_ecr_repository" "repository" {
   name = "${var.project_name}-${var.environment}-ecr"
 }
 
-#part 1:  Create the IAM role that ECS cluster needs
+# IAM Role for ECS Task Execution
 resource "aws_iam_role" "ecs_task_execution_role" {
   name = "${var.project_name}-${var.environment}-ecs-task-execution-role"
 
@@ -25,18 +113,15 @@ resource "aws_iam_role" "ecs_task_execution_role" {
   })
 }
 
-
+# IAM Role Policy Attachment for ECS Task Execution
 resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
   role       = aws_iam_role.ecs_task_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-
-
-
-# part 2: Task definition
+# ECS Task Definition with Container Logging
 resource "aws_ecs_task_definition" "app" {
-  family                   = "myapp-prod"
+  family                   = "${var.project_name}-${var.environment}"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
@@ -45,8 +130,8 @@ resource "aws_ecs_task_definition" "app" {
 
   container_definitions = jsonencode([
     {
-      name         = "myapp-prod"
-      image        = "153295639067.dkr.ecr.us-east-1.amazonaws.com/flask_deployment-prod-ecr:latest"
+      name         = "${var.project_name}-${var.environment}"
+      image        = "153295639067.dkr.ecr.us-east-1.amazonaws.com/${var.project_name}-${var.environment}-ecr:latest"
       essential    = true
       portMappings = [
         {
@@ -73,12 +158,12 @@ resource "aws_ecs_task_definition" "app" {
   ])
 }
 
-# part 2: resource log group
+# CloudWatch Log Group for ECS Logging
 resource "aws_cloudwatch_log_group" "ecs_logs" {
   name = "/ecs/${var.project_name}-${var.environment}"
 }
 
-# part 3: adding logging to role
+# IAM Role Policy for ECS Logging
 resource "aws_iam_role_policy" "ecs_logging" {
   name = "${var.project_name}-${var.environment}-ecs-logging"
   role = aws_iam_role.ecs_task_execution_role.id
@@ -98,8 +183,7 @@ resource "aws_iam_role_policy" "ecs_logging" {
   })
 }
 
-# part 4: network configuration
-# ECS Service with network configuration
+# ECS Service with Network Configuration
 resource "aws_ecs_service" "my_service" {
   name            = "${var.project_name}-${var.environment}-service"
   cluster         = aws_ecs_cluster.cluster.id
@@ -108,11 +192,10 @@ resource "aws_ecs_service" "my_service" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = ["subnet-0a9a486148479e71b", "subnet-0addfd0ca5eb1753a"] # Replace with your actual subnet IDs
+    subnets         = [aws_subnet.subnet_1.id, aws_subnet.subnet_2.id]
     assign_public_ip = true
-    security_groups = ["sg-01d73761ebd823067"] # Replace with your actual security group ID
+    security_groups = [aws_security_group.flask_sg.id]
   }
 
-  # Ensure the service uses the latest version of the task definition
   force_new_deployment = true
 }
