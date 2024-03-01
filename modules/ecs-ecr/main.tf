@@ -1,4 +1,4 @@
-# VPC ID is hardcoded based on your JSON
+# VPC ID is hardcoded based on your JSON a
 variable "vpc_id" {
   default = "vpc-0d901141117fda04f"
 }
