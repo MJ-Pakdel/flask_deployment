@@ -1,12 +1,22 @@
-
-
-
-
-# VPC ID is hardcoded based on your JSON a
 variable "vpc_id" {
   default = "vpc-0d901141117fda04f"
 }
 
+variable "project_name" {
+  type    = string
+  default = "flask_deployment"
+}
+
+variable "environment" {
+  type    = string
+  default = "prod"
+}
+
+variable "region" {
+  default = "us-east-1"
+}
+
+# Internet Gateway
 resource "aws_internet_gateway" "igw" {
   vpc_id = var.vpc_id
 
@@ -15,7 +25,21 @@ resource "aws_internet_gateway" "igw" {
   }
 }
 
-# Subnet 1 - Similar to your JSON definition
+# Route Table
+resource "aws_route_table" "public" {
+  vpc_id = var.vpc_id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
+  }
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-public-rt"
+  }
+}
+
+# Subnets
 resource "aws_subnet" "subnet_1" {
   vpc_id                  = var.vpc_id
   cidr_block              = "10.192.30.0/24"
@@ -24,29 +48,34 @@ resource "aws_subnet" "subnet_1" {
 
   tags = {
     Name = "${var.project_name}-${var.environment}-subnet-1"
-    "aws:cloudformation:stack-name" = "lili-vac"
-    "aws:cloudformation:logical-id" = "PublicSubnet1"
-    "aws:cloudformation:stack-id" = "arn:aws:cloudformation:us-east-1:153295639067:stack/lili-vac/0fc6d1e0-0840-11ec-968e-1226ff6bb471"
   }
 }
 
-# Subnet 2 - Similar configuration with a different CIDR block
 resource "aws_subnet" "subnet_2" {
   vpc_id                  = var.vpc_id
   cidr_block              = "10.192.40.0/24"
-  availability_zone       = "us-east-1b" # Assuming the second subnet is in a different AZ for high availability
+  availability_zone       = "us-east-1b"
   map_public_ip_on_launch = true
 
   tags = {
     Name = "${var.project_name}-${var.environment}-subnet-2"
-    "aws:cloudformation:stack-name" = "lili-vac"
-    "aws:cloudformation:logical-id" = "PublicSubnet2"
-    "aws:cloudformation:stack-id" = "arn:aws:cloudformation:us-east-1:153295639067:stack/lili-vac/0fc6d1e0-0840-11ec-968e-1226ff6bb471"
   }
 }
 
+# Subnet Route Table Associations
+resource "aws_route_table_association" "a_subnet_1" {
+  subnet_id      = aws_subnet.subnet_1.id
+  route_table_id = aws_route_table.public.id
+}
+
+resource "aws_route_table_association" "a_subnet_2" {
+  subnet_id      = aws_subnet.subnet_2.id
+  route_table_id = aws_route_table.public.id
+}
+
+# Security Group
 resource "aws_security_group" "flask_sg" {
-  name        = "${var.project_name}-${var.environment}-flask-sg1"
+  name        = "${var.project_name}-${var.environment}-flask-sg"
   description = "Allow public access to Flask app on port 5000"
   vpc_id      = var.vpc_id
 
