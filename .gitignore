@@ -6,7 +6,6 @@ Thumbs.db
 .terraform/*
 *.tfstate
 *.tfstate.backup
-*.tfvars
 .terraform.lock.hcl
 
 # Ignore directories
