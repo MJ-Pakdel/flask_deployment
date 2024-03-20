@@ -19,7 +19,15 @@
 ## ipv4 vs ipv6
 internet protocol version 4 allows for internet addresses that are 32 bit while ipv6 allows internet addresses that are 128 bits. ipv4 allosws at most 3.5 billions internet addresses and it is at its almost at its cap. However, 70 percent of traffic is still ipv4. When your device connect to the internet, it obtains both ipv4 from ISP and ipv6 from DHCP centers. ipv4 and ipv6 change over time. Now your device tries to connect to a website. if the website support ipv6 then your connection will be ipv6. Your device prefers ipv6 connections over ipv4 if 1- your device supports it 2- your router supports it 3- your internet provider supports it 4- your destination website supports it
 
+## session_id, device_id and ip_address
+http requests have different component. Header is always populated and one of the component of header is User-Agent which has data such as ip address. So the ip of the client always is always known for the website. of cource the user can uses the vpn and in that case the website knows the ip addess of the vpn server. However, ip address is not reliable for identifing the user since it can change even within the same session if the user is using mobile networks or vpns. 
 
+To identify the user within the same session, host uses cookies. one of the infomation in the cookies is session_id. when you reach out to the website and you accept that host to collect cookies on you, host website tells browser what info needs to be collected as cookies. session_id is always one of those cookies. another thing might be for example your state of interest (things in your shopping cart). cookies are stored on your browser. they are used so host webiste reconize you within the same sessioin, so if you send 10 requests to the host website, all of them will have cookies. The life of cookies are short . the moment you close the browser, cookies disappear. so session_id cannot be used to identify the user if user uses the website tommorrow. 
+
+if we want to identify recurrning user, host website needs to ask browser to log devide_id as part of the cookies. Regulations to collect devide_ids are a bit harder. 
+
+update:
+ios and chrome never allow website to collect device_id as part of the cookies even if the user aggrees to cookies. website used a technique called fingerprinting to which is a combination of data such as ip address, browser attributes, os attributes, font of the client etc to identify recurring user. it is not 100% accurate like device id but it is good enough. 
 ## VPC
 when you launch your your application, virtual private cloud allow you to isolate your network from other vpcs. it gives you a lot of freedom over your network customization. you can specify port range or you can select your own ip. You cannot launch some services without attaching to a vpc and a subnet such as launching ec2, fargate, managed airflow, or rds
 
